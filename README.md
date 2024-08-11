@@ -5,4 +5,4 @@
 1)КЛАДР скачал с этого сайта https://fias.nalog.ru/Frontend, в пакете 7 DBF файлов.
 2)Написал два кода на Python: первый файл test_db.py для просмотра этих DBF файлов и db.py для выгрузки данных в свою БД на PostgreSQL.
 3)После того как я разобрался с таблицами, я написал два файла: index.html и autocomplete.php.
-4) В файлах db.py, index.html, autocomplete.php требуется подключение к PostgreSQL, но дамп БД я приложил(mydatabase.sql) и в файлах указал где именно надо вводить свои данные.
+4) В файлах db.py, autocomplete.php требуется подключение к PostgreSQL, но дамп БД я приложил(mydatabase.sql) и в файлах указал где именно надо вводить свои данные.
