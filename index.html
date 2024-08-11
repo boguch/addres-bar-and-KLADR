@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Автозаполнение адреса</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f9f5d2;
+            margin: 0;
+            padding: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 18px;
+        }
+        .suggestions {
+            position: absolute;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #ccc;
+            width: calc(100% - 10px);
+            display: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        .suggestion-item:hover {
+            background: #d0e7ff;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        #output {
+            font-size: 20px;
+            margin-top: 10px;
+        }
+        button {
+            background-color: #4CAF50; 
+            color: white; 
+            padding: 15px 32px; 
+            text-align: center; 
+            text-decoration: none; 
+            display: inline-block; 
+            font-size: 16px;
+            margin: 4px 2px; 
+            cursor: pointer; 
+            border: none; 
+            border-radius: 5px; 
+            transition: background-color 0.3s ease; 
+        }
+
+        button:hover {
+            background-color: #45a049; 
+        }
+
+        button:active {
+            background-color: #3e8e41; 
+            transform: scale(0.98);
+        }
+    </style>
+    <script>
+        let timeout = null;
+
+        // Функция для получения предложений на основе введенного текста
+        async function fetchSuggestions(type, query, districtCode = null, cityCode = null, houseCode = null) {
+            const url = `autocomplete.php?q=${encodeURIComponent(query)}&type=${type}` +
+                (districtCode ? `&districtCode=${districtCode}` : '') +
+                (cityCode ? `&cityCode=${cityCode}` : '') +
+                (houseCode ? `&houseCode=${houseCode}` : '');
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ошибка! Статус: ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            return data;
+        }
+
+        // Отображение предложений для выбора
+        function displaySuggestions(results, type) {
+            const suggestionsDiv = document.getElementById(`${type}-suggestions`);
+            suggestionsDiv.innerHTML = '';
+            suggestionsDiv.style.display = 'block';
+
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.textContent = type === 'street' ? item.street_name : item.name;
+                div.onclick = () => fillSuggestion(item, type);
+                suggestionsDiv.appendChild(div);
+            });
+        }
+
+        // Закрытие списка предложений
+        function closeSuggestions(type) {
+            const suggestionsDiv = document.getElementById(`${type}-suggestions`);
+            suggestionsDiv.innerHTML = '';
+            suggestionsDiv.style.display = 'none';
+        }
+
+        // Заполнение поля выбором из предложений
+        function fillSuggestion(item, type) {
+            const inputField = document.getElementById(type);
+            inputField.value = type === 'street' ? item.street_name : item.name;
+            inputField.dataset.code = item.code || '';
+            if (type === 'street') {
+                const houseInput = document.getElementById('house');
+                houseInput.dataset.code = item.code; // Код улицы
+            }
+            closeSuggestions(type);
+            updateFields(); // Обновить состояния полей
+        }
+
+        // Обновление состояния полей ввода в зависимости от выбора
+        function updateFields() {
+            const district = document.getElementById('district').value;
+            const city = document.getElementById('city').value;
+
+            document.getElementById('city').disabled = district === '';
+            document.getElementById('street').disabled = city === '';
+            document.getElementById('house').disabled = document.getElementById('street').value === '';
+
+            if (document.getElementById('city').disabled) {
+                document.getElementById('city').value = '';
+                document.getElementById('city').dataset.code = '';
+            }
+            if (document.getElementById('street').disabled) {
+                document.getElementById('street').value = '';
+                document.getElementById('street').dataset.code = '';
+            }
+            if (document.getElementById('house').disabled) {
+                document.getElementById('house').value = '';
+            }
+        }
+
+        // Отображение выбранных значений
+        function displayValues() {
+            const district = document.getElementById('district').value;
+            const city = document.getElementById('city').value;
+            const street = document.getElementById('street').value;
+            const house = document.getElementById('house').value;
+
+            const outputText = `Регион: ${district}, Населенный пункт: ${city}, Улица: ${street}, Номер дома: ${house}`;
+            document.getElementById('output').innerText = outputText;
+        }
+
+        // Обработка ввода в полях
+        async function handleInput(type, value) {
+            clearTimeout(timeout);
+            updateFields();
+            timeout = setTimeout(async () => {
+                const districtCode = document.getElementById('district').dataset.code || null;
+                const cityCode = document.getElementById('city').dataset.code || null;
+                const houseCode = document.getElementById('house').dataset.code || null;
+
+                if (value.trim() === '') {
+                    closeSuggestions(type);
+                    return;
+                }
+
+                try {
+                    const data = await fetchSuggestions(type, value, districtCode, cityCode, houseCode);
+                    if (data && data.results && data.results.length > 0) {
+                        displaySuggestions(data.results, type);
+                    } else {
+                        closeSuggestions(type);
+                    }
+                } catch (error) {
+                    displayError(error.message);
+                }
+            }, 1000);
+        }
+
+        // Отображение сообщения об ошибке
+        function displayError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.innerText = message;
+            setTimeout(() => errorDiv.innerText = '', 5000); // Скрыть сообщение об ошибке через 5 секунд
+        }
+
+        // Закрытие предложений при клике вне них
+        document.addEventListener('click', (e) => {
+            const suggestions = document.querySelectorAll('.suggestions');
+            suggestions.forEach(suggestionsDiv => {
+                if (!suggestionsDiv.contains(e.target) && !e.target.closest('input')) {
+                    closeSuggestions(suggestionsDiv.id.split('-')[0]);
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>Автозаполнение адреса</h1>
+    <div id="error" class="error"></div>
+    
+    <input type="text" id="district" placeholder="Регион" oninput="handleInput('district', this.value)">
+    <div id="district-suggestions" class="suggestions" role="listbox" aria-hidden="true"></div>
+
+    <input type="text" id="city" placeholder="Населенный пункт" oninput="handleInput('city', this.value)" disabled>
+    <div id="city-suggestions" class="suggestions" role="listbox" aria-hidden="true"></div>
+
+    <input type="text" id="street" placeholder="Улица" oninput="handleInput('street', this.value)" disabled>
+    <div id="street-suggestions" class="suggestions" role="listbox" aria-hidden="true"></div>
+
+    <input type="text" id="house" placeholder="Номер дома" oninput="handleInput('house', this.value)" disabled>
+    <div id="house-suggestions" class="suggestions" role="listbox" aria-hidden="true"></div>
+
+    <h2>Вывод значений</h2>
+    <button onclick="displayValues()">Выбрать значения</button>
+    <p id="output"></p>
+</body>
+</html>
